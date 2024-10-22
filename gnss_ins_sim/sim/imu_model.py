@@ -92,9 +92,9 @@ class IMU(object):
             axis: 6 for IMU, 9 for IMU+magnetometer
             gps: True if GPS exists, False if not.
             gps_opt: a dictionary to specify the GPS error model.
+                'mode': loose (for PVT fix), tight (for GPS observables)
                 'stdp': position RMS error, meters
                 'stdv': vertical RMS error, meters/second
-            odo: True if odometer exists, False if not.
             odo_opt: a dictionary to specify the odometer error model.
                 'scale': scale factor
                 'stdv': velocity measurement noise, meters/second.
@@ -177,7 +177,13 @@ class IMU(object):
             self.gps = True
             if gps_opt is None:
                 self.gps_err = gps_low_accuracy
+                self.gps_loose = True
             elif isinstance(gps_opt, dict):
+                if 'mode' in gps_opt:
+                    if gps_opt['mode'] == 'tight':
+                        self.gps_loose = False
+                    elif gps_opt['mode'] != 'loose':
+                        raise TypeError('gps_opt mode should be tight or loose')
                 if 'stdp' in gps_opt and 'stdv' in gps_opt:
                     self.gps_err = gps_opt
                 else:
@@ -186,6 +192,7 @@ class IMU(object):
                 raise TypeError('gps_opt should be None or a dict')
         else:
             self.gps = False
+            self.gps_loose = False
             self.gps_err = None
 
         # build odometer model

@@ -29,7 +29,7 @@ class Sim(object):
     INS simulation engine.
     '''
     def __init__(self, fs, motion_def, ref_frame=0, imu=None,\
-                 mode=None, env=None, algorithm=None):
+                 mode=None, env=None, algorithm=None, orbit=None):
         '''
         Args:
             fs: [fs_imu, fs_gps, fs_mag], Hz.
@@ -144,6 +144,8 @@ class Sim(object):
         self.data_from_files = False
         # algorithm manager
         self.amgr = InsAlgoMgr(algorithm)
+
+        self.orbit = orbit
 
         # associated data mapping. this is a dict in the following form:
         #   {'dst_name': ['src_name', routine_convert_src_to_dst]}
@@ -304,7 +306,7 @@ class Sim(object):
             is_angle = False
             if data in self.interested_error:
                 is_angle = self.interested_error[data] == 'angle'
-            self.dmgr.plot(data, keys, is_angle, opt, extra_opt)
+                self.dmgr.plot(data, keys, is_angle, opt, extra_opt)
         # show figures
         self.dmgr.show_plot()
 
@@ -450,7 +452,10 @@ class Sim(object):
         # output definitions
         output_def = np.array([[1.0, self.fs[0]], [1.0, self.fs[0]], [1.0, self.fs[0]]])
         if self.imu.gps:
-            output_def[1, 0] = 1.0
+            if self.imu.gps_loose:
+                output_def[1, 0] = 1.0
+            else:
+                output_def[1, 0] = 2.0
             output_def[1, 1] = self.fs[1]
         else:
             output_def[1, 0] = -1.0
@@ -463,7 +468,7 @@ class Sim(object):
 
         # generate reference data and add data to ins_data_manager
         rtn = pathgen.path_gen(ini_pva, motion_def, output_def, mobility,
-                               self.ref_frame, self.imu.magnetometer)
+                               self.ref_frame, self.imu.magnetometer, self.orbit )
         self.dmgr.add_data(self.dmgr.time.name, rtn['nav'][:, 0] / self.fs[0])
         self.dmgr.add_data(self.dmgr.ref_pos.name, rtn['nav'][:, 1:4])
         self.dmgr.add_data(self.dmgr.ref_vel.name, rtn['nav'][:, 4:7])
@@ -471,9 +476,14 @@ class Sim(object):
         self.dmgr.add_data(self.dmgr.ref_accel.name, rtn['imu'][:, 1:4])
         self.dmgr.add_data(self.dmgr.ref_gyro.name, rtn['imu'][:, 4:7])
         if self.imu.gps:
-            self.dmgr.add_data(self.dmgr.gps_time.name, rtn['gps'][:, 0] / self.fs[0])
-            self.dmgr.add_data(self.dmgr.ref_gps.name, rtn['gps'][:, 1:7])
-            self.dmgr.add_data(self.dmgr.gps_visibility.name, rtn['gps'][:, 7])
+            if self.imu.gps_loose:
+                self.dmgr.add_data(self.dmgr.gps_time.name, rtn['gps'][:, 0] / self.fs[0])
+                self.dmgr.add_data(self.dmgr.ref_gps.name, rtn['gps'][:, 1:7])
+                self.dmgr.add_data(self.dmgr.gps_visibility.name, rtn['gps'][:, 7])
+            else:
+                self.dmgr.add_data(self.dmgr.gps_time.name, rtn['gps'][:, 0, 0] / self.fs[0])
+                self.dmgr.add_data(self.dmgr.gps_prn.name, rtn['gps'][:, :, 1])
+                self.dmgr.add_data(self.dmgr.ref_gps_obs.name, rtn['gps'][:, :, 2])
         if self.imu.magnetometer:
             self.dmgr.add_data(self.dmgr.ref_mag.name, rtn['mag'][:, 1:4])
         if self.imu.odo:
@@ -495,9 +505,13 @@ class Sim(object):
                                     self.imu.gyro_err, vib_def_gyro)
             self.dmgr.add_data(self.dmgr.gyro.name, gyro, key=i)
             if self.imu.gps:
-                gps = pathgen.gps_gen(self.dmgr.ref_gps.data, self.imu.gps_err,\
-                                                   self.ref_frame)
-                self.dmgr.add_data(self.dmgr.gps.name, gps, key=i)
+                if self.imu.gps_loose:
+                    gps = pathgen.gps_gen(self.dmgr.ref_gps.data, self.imu.gps_err,\
+                                                    self.ref_frame)
+                    self.dmgr.add_data(self.dmgr.gps.name, gps, key=i)
+                else:
+                    gps = pathgen.gps_obs_gen(self.dmgr.ref_gps_obs.data, self.imu.gps_err)
+                    self.dmgr.add_data(self.dmgr.gps_obs.name, gps, key=i)
             if self.imu.magnetometer:
                 mag = pathgen.mag_gen(self.dmgr.ref_mag.data, self.imu.mag_err)
                 self.dmgr.add_data(self.dmgr.mag.name, mag, key=i)

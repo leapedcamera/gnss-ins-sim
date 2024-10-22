@@ -76,6 +76,9 @@ class InsDataMgr(object):
         self.gps_visibility = Sim_data(name='gps_visibility',\
                                        description='GPS visibility',\
                                        legend=['gps_visibility'])
+        self.gps_prn = Sim_data(name='gps_prn',\
+                                       description='GPS PRN',\
+                                       legend=['gps_prn'])
         self.ref_pos = Sim_data(name='ref_pos',\
                                 description='true LLA pos in the navigation frame',\
                                 units=['rad', 'rad', 'm'],\
@@ -108,6 +111,12 @@ class InsDataMgr(object):
                                 output_units=['deg', 'deg', 'm', 'm/s', 'm/s', 'm/s'],\
                                 legend=['ref_gps_lat', 'ref_gps_lon', 'ref_gps_alt',\
                                         'ref_gps_vN', 'ref_gps_vE', 'ref_gps_vD'])
+        self.ref_gps_obs = Sim_data(name='ref_gps_obs',\
+                                description='true GPS observables',\
+                                units=['m'],\
+                                output_units=['m'],\
+                                legend=['ref_gps_obs'])
+                
                                 # downsampled true pos/vel
         self.ref_odo = Sim_data(name='ref_odo',\
                                 description='true odometer velocity',\
@@ -133,6 +142,11 @@ class InsDataMgr(object):
                             output_units=['deg', 'deg', 'm', 'm/s', 'm/s', 'm/s'],\
                             legend=['gps_lat', 'gps_lon', 'gps_alt',\
                                     'gps_vN', 'gps_vE', 'gps_vD'])
+        self.gps_obs = Sim_data(name='gps_obs',\
+                            description='GPS observables measurements',\
+                            units=['m'],
+                            output_units=['m'],\
+                            legend=['gps_obs'])
         self.odo = Sim_data(name='odo',\
                             description='odometer velocity measurement',\
                             units=['m/s'],\
@@ -228,6 +242,15 @@ class InsDataMgr(object):
             self.gps.output_units = ['m', 'm', 'm', 'm/s', 'm/s', 'm/s']
             self.gps.legend = ['gps_x', 'gps_y', 'gps_z',\
                                'gps_vx', 'gps_vy', 'gps_vz']
+            self.ref_gps_obs.description = 'true GPS observables'
+            self.ref_gps_obs.units = ['m']
+            self.ref_gps_obs.output_units = ['m']
+            self.ref_gps_obs.legend = ['ref_gps_obs']
+
+            self.gps_obs.description = 'GPS observable measurements'
+            self.gps_obs.units = ['m']
+            self.gps_obs.output_units = ['m']
+            self.gps_obs.legend = ['gps_obs']
         ########## all data ##########
         # __all include all data that may occur in an INS solution.
         self.__all = {
@@ -239,6 +262,7 @@ class InsDataMgr(object):
             self.time.name: self.time,
             self.gps_time.name: self.gps_time,
             self.gps_visibility.name: self.gps_visibility,
+            self.gps_prn.name: self.gps_prn,
             self.ref_pos.name: self.ref_pos,
             self.ref_vel.name: self.ref_vel,
             self.ref_att_euler.name: self.ref_att_euler,
@@ -246,12 +270,14 @@ class InsDataMgr(object):
             self.ref_gyro.name: self.ref_gyro,
             self.ref_accel.name: self.ref_accel,
             self.ref_gps.name: self.ref_gps,
+            self.ref_gps_obs.name: self.ref_gps_obs,
             self.ref_odo.name: self.ref_odo,
             self.ref_mag.name: self.ref_mag,
             # sensor data
             self.gyro.name: self.gyro,
             self.accel.name: self.accel,
             self.gps.name: self.gps,
+            self.gps_obs.name: self.gps_obs,
             self.odo.name: self.odo,
             self.mag.name: self.mag,
             # calibration algorithm output
@@ -617,8 +643,13 @@ class InsDataMgr(object):
                         self.__err[data_err.name] = data_err
                 # error data generated, plot it
                 if err_data_name in self.__err:
-                    self.__err[err_data_name].plot(x_axis, key=keys,\
+                    if 'monte' in opt and ( opt['monte'] == 'true' or opt['monte'] == 'True' ):
+                        self.__err[err_data_name].plot_monte(x_axis, key=keys,\
+                            plot3d=plot3d, mpl_opt=extra_opt) 
+                    else:
+                        self.__err[err_data_name].plot(x_axis, key=keys,\
                                                    plot3d=plot3d, mpl_opt=extra_opt)
+
                 else:
                     print('Cannot get error data of %s'% what_to_plot)
             else:
