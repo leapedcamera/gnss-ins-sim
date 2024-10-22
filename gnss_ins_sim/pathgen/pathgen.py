@@ -14,6 +14,7 @@ Created on 2017-09-12
 # import
 import math
 import numpy as np
+import gnsstoolbox.orbits as orb
 from ..attitude import attitude
 from ..geoparams import geoparams
 from ..geoparams import geomag
@@ -23,7 +24,7 @@ from ..psd import time_series_from_psd
 VERSION = '1.0'
 D2R = math.pi/180
 
-def path_gen(ini_pos_vel_att, motion_def, output_def, mobility, ref_frame=0, magnet=False):
+def path_gen(ini_pos_vel_att, motion_def, output_def, mobility, ref_frame=0, magnet=False, orbit=None):
     """
     Generate IMU and GPS or odometer data file according to initial position\velocity\attitude,
     motion command and simulation mode.
@@ -101,9 +102,9 @@ def path_gen(ini_pos_vel_att, motion_def, output_def, mobility, ref_frame=0, mag
     alpha = 0.9                     # for the low pass filter of the motion commands
     filt_a = alpha * np.eye(3)
     filt_b = (1-alpha) * np.eye(3)
-    max_acc = mobility[0]           # 10.0m/s2, max acceleratoin
-    max_dw = mobility[1]            # 0.5rad/s2    # max angular acceleration, rad/s/s
-    max_w = mobility[2]             # 1.0rad/s       # max angular velocity, rad/s
+    max_acc = 106                   # 10.0m/s2, max acceleratoin
+    max_dw = 5            # 0.5rad/s2    # max angular acceleration, rad/s/s
+    max_w = 5             # 1.0rad/s       # max angular velocity, rad/s
     kp = 5.0                        # kp and kd are PD controller params
     kd = 10.0
     att_converge_threshold = 1e-4   # threshold to determine if the command is completed
@@ -129,10 +130,20 @@ def path_gen(ini_pos_vel_att, motion_def, output_def, mobility, ref_frame=0, mag
     nav_data = np.zeros((sim_count_max, 10))
     enable_gps = False
     enable_odo = False
+    enable_psr = False
     if output_def.shape[0] == 3:
         if output_def[1, 0] == 1:
             enable_gps = True
             gps_data = np.zeros((sim_count_max, 8))
+            output_def[1, 1] = sim_osr * round(out_freq / output_def[1, 1])
+        elif output_def[1,0] == 2:
+            if orbit == None:
+                raise ValueError("Orbit argument must be provided when GPS observables selected.")
+            
+            enable_psr = True
+            output_def[1,0] = 1
+            gps_data = np.zeros((sim_count_max, 32, 3))
+            gps_data[:] = np.nan
             output_def[1, 1] = sim_osr * round(out_freq / output_def[1, 1])
         else:
             output_def[1, 0] = -1
@@ -148,6 +159,7 @@ def path_gen(ini_pos_vel_att, motion_def, output_def, mobility, ref_frame=0, mag
         mag_data = np.zeros((sim_count_max, 4))
 
     ### start computations
+    psr_counter = 0
     sim_count = 0               # number of total simulation data
     acc_sum = np.zeros(3)       # accum of over sampled simulated acc data
     gyro_sum = np.zeros(3)      # accum of over sampled simulated gyro data
@@ -289,18 +301,42 @@ def path_gen(ini_pos_vel_att, motion_def, output_def, mobility, ref_frame=0, mag
                 # index increment
                 idx_high_freq += 1
             # GPS or odometer measurement
-            if enable_gps:
-                if (sim_count % output_def[1, 1]) == 0:     # measurement period
-                    gps_data[idx_low_freq, 0] = sim_count
-                    gps_data[idx_low_freq, 1] = pos_n[0] + pos_delta_n[0]
-                    gps_data[idx_low_freq, 2] = pos_n[1] + pos_delta_n[1]
-                    gps_data[idx_low_freq, 3] = pos_n[2] + pos_delta_n[2]
-                    gps_data[idx_low_freq, 4] = vel_n[0]
-                    gps_data[idx_low_freq, 5] = vel_n[1]
-                    gps_data[idx_low_freq, 6] = vel_n[2]
-                    gps_data[idx_low_freq, 7] = gps_visibility
-                    # index increment
-                    idx_low_freq += 1
+            if (sim_count % output_def[1, 1]) == 0:     # measurement period
+                if enable_gps:
+                    if (sim_count % output_def[1, 1]) == 0:     # measurement period
+                        gps_data[idx_low_freq, 0] = sim_count
+                        gps_data[idx_low_freq, 1] = pos_n[0] + pos_delta_n[0]
+                        gps_data[idx_low_freq, 2] = pos_n[1] + pos_delta_n[1]
+                        gps_data[idx_low_freq, 3] = pos_n[2] + pos_delta_n[2]
+                        gps_data[idx_low_freq, 4] = vel_n[0]
+                        gps_data[idx_low_freq, 5] = vel_n[1]
+                        gps_data[idx_low_freq, 6] = vel_n[2]
+                        gps_data[idx_low_freq, 7] = gps_visibility
+
+                elif enable_psr:                    
+                    pos_ecef = geoparams.lla2ecef(pos_n)
+
+                    # Put the time for the first satellite no matter what
+                    time = sim_count / output_def[1, 1] / 86400 + orbit.NAV_dataG[0][0].mjd
+                    gps_data[idx_low_freq, 0, 0] = sim_count
+
+                    for i in range(32):
+                        X, Y, Z, dte = orbit.calcSatCoord("G", i, time )
+                        if np.isnan( X ):
+                            continue
+                        u_pos_ecef = pos_ecef / np.linalg.norm(pos_ecef)
+                        sat_pos_ecef = np.array([X,Y,Z])
+                        u_sat_ecef = sat_pos_ecef / np.linalg.norm(sat_pos_ecef)
+                        theta = np.arccos( np.dot(u_pos_ecef,u_sat_ecef))
+                        # 60 degreee elevation angle
+                        if theta < 1.0471:
+                            pseudorange = np.linalg.norm( sat_pos_ecef - pos_ecef )
+                            gps_data[idx_low_freq, i, 0] = sim_count
+                            gps_data[idx_low_freq, i, 1] = i
+                            gps_data[idx_low_freq, i, 2] = pseudorange
+                            psr_counter += 1
+                # index increment
+                idx_low_freq += 1
 
             # accumulate pos/vel/att change
             pos_delta_n = pos_delta_n + pos_dot_n*dt    # accumulated pos change
@@ -326,6 +362,8 @@ def path_gen(ini_pos_vel_att, motion_def, output_def, mobility, ref_frame=0, mag
         path_results['odo'] = odo_data[0:idx_high_freq, :]
     if enable_gps:
         path_results['gps'] = gps_data[0:idx_low_freq, :]
+    if enable_psr:
+        path_results['gps'] = gps_data[0:idx_low_freq, :, :]
     return path_results
 
 def calc_true_sensor_output(pos_n, vel_b, att, c_nb, vel_dot_b, att_dot, ref_frame, g):
@@ -622,6 +660,27 @@ def gps_gen(ref_gps, gps_err, gps_type=0):
     vel_noise = gps_err['stdv'] * np.random.randn(n, 3)
     gps_mea = np.hstack([ref_gps[:, 0:3] + pos_noise,
                          ref_gps[:, 3:6] + vel_noise])
+    return gps_mea
+
+
+def gps_obs_gen(ref_gps_obs, gps_err):
+    '''
+    Add error to true GPS observables data according to GPS receiver error parameters
+    Args:
+        ref_gps_obs: Observable measurmeent,  [psr], [m].
+
+        gps_err: GPS reeceiver parameters.
+            'stdp': RMS position error, [m].
+    Returns:
+        gps_mea: ref_gps_obs with error.
+    '''
+    # total data count
+    n = ref_gps_obs.shape[0]
+    pos_err = gps_err['stdp'].copy()
+
+    ## simulate GPS error
+    pos_noise = pos_err[0] * np.random.randn(n, 32)
+    gps_mea = ref_gps_obs + pos_noise
     return gps_mea
 
 def odo_gen(ref_odo, odo_err):
