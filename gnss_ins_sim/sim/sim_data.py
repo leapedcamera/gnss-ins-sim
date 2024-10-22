@@ -177,6 +177,22 @@ class Sim_data(object):
         if self.plottable:
             sim_plt.plot(x, self, key, plot3d, mpl_opt)
 
+    def plot_monte(self, x, key=None, plot3d=0, mpl_opt=''):
+        '''
+        Plot self.data[key], monte-carlo version of plot
+        Args:
+        
+            key is a tuple or list of keys
+            x: x axis data
+            plot3d: No functionality for this option
+            mpl_opt: strings to specify matplotlib properties.
+        '''
+        from . import sim_data_plot as sim_plt
+        if plot3d != 0:
+            raise ValueError('Monte carlo plot in 3d not supported.')
+        if self.plottable:
+            sim_plt.plot_monte(x, self, key, mpl_opt)
+
 def show_plot():
     '''
     Show all plots

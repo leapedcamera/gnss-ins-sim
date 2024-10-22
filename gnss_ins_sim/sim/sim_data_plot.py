@@ -8,6 +8,7 @@ Created on 2020-07-24
 """
 
 import math
+import copy
 import numpy as np
 import matplotlib.pyplot as plt
 import matplotlib.mlab as mlab
@@ -29,7 +30,55 @@ def plot(x, y, key, plot3d, mpl_opt):
     else:
         plot_array(x, y, plot3d, mpl_opt)
 
+def plot_monte(x, y, key, mpl_opt):
+    '''
+    self.data is a dict. group keys so each algo is one plot
+    Args:
+        x: x axis data Sim_data object.
+        y: a sim_data object.
+        key: a list of keys to specify what data in y.data is plotted.
+            If key is an empty list, plot all keys in y.data
+        plot3d: 1--3D plot, 2--3D plot projected on xy, xz and yz, otherwise--2D plot
+    '''
+    if key == []:
+        key = y.data.keys()
+    new_key = copy.deepcopy(key) 
+    for i, i_key in enumerate(key):
+        new_key[i] = i_key[:i_key.rfind("_")]
+    algos = list(set(new_key))
+    algo_idx = -1
+    algo = None
 
+    # x axis
+    if isinstance(x.data, dict):
+        if not x.data:  # x.data could be an empty dict
+            x_data = None
+        else:
+            x_data = x.data[i]
+    else:
+        x_data = x.data
+
+    n = len(y.legend)
+
+    # Loop through all runs
+    for j, j_key in enumerate(new_key):
+        if j_key != algo:
+            # Reached a new algorithm
+            algo = j_key
+            fig, axs = plt.subplots(n)
+            fig.suptitle( algo + '_' + y.name , fontsize=30)
+        # Prep data
+        y_data = y.data[key[j]]
+        y_data = sim_data.convert_unit(y_data, y.units, y.output_units)
+        plt.xlabel(x.name + ' (' + x.output_units[0] + ')')
+        # Plot each dimension
+        for k in range(n):
+            axs[k].plot(x_data, y_data[:,k], \
+                        color='0.8')
+            axs[k].set_ylabel(str(y.output_units[k]))
+
+
+                
 def plot_dict(x, y, key, plot3d=0, mpl_opt=''):
     '''
     self.data is a dict. plot self.data according to key
