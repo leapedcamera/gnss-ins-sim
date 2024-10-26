@@ -69,10 +69,14 @@ class InsDataMgr(object):
                              description='sample time',\
                              units=['sec'],\
                              legend=['time'])
-        self.gps_time = Sim_data(name='gps_time',\
+        self.gps_tov = Sim_data(name='gps_tov',\
                                  description='GPS sample time',\
                                  units=['sec'],\
-                                 legend=['gps_time'])
+                                 legend=['gps_tov'])
+        self.gps_mjd = Sim_data(name='gps_mjd',\
+                                 description='GPS system time in Modified Julian Date',\
+                                 units=['days'],\
+                                 legend=['gps_mjd'])
         self.gps_visibility = Sim_data(name='gps_visibility',\
                                        description='GPS visibility',\
                                        legend=['gps_visibility'])
@@ -260,7 +264,8 @@ class InsDataMgr(object):
             self.fs_mag.name: self.fs_mag,
             self.ref_frame.name: self.ref_frame,
             self.time.name: self.time,
-            self.gps_time.name: self.gps_time,
+            self.gps_tov.name: self.gps_tov,
+            self.gps_mjd.name: self.gps_mjd,
             self.gps_visibility.name: self.gps_visibility,
             self.gps_prn.name: self.gps_prn,
             self.ref_pos.name: self.ref_pos,
@@ -629,8 +634,8 @@ class InsDataMgr(object):
             x_axis = self.time
             # choose proper x axis data for specific y axis data
             if what_to_plot == self.ref_gps.name or what_to_plot == self.gps.name or\
-                what_to_plot == self.gps_visibility.name or what_to_plot == self.gps_time.name:
-                x_axis = self.gps_time
+                what_to_plot == self.gps_visibility.name or what_to_plot == self.gps_tov.name:
+                x_axis = self.gps_tov
             elif what_to_plot in self.__algo_output and self.algo_time.name in self.available:
                 x_axis = self.algo_time
             # plot

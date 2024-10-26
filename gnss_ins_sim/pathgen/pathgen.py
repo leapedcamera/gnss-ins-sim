@@ -142,7 +142,7 @@ def path_gen(ini_pos_vel_att, motion_def, output_def, mobility, ref_frame=0, mag
             
             enable_psr = True
             output_def[1,0] = 1
-            gps_data = np.zeros((sim_count_max, 32, 3))
+            gps_data = np.zeros((sim_count_max, 32, 4))
             gps_data[:] = np.nan
             output_def[1, 1] = sim_osr * round(out_freq / output_def[1, 1])
         else:
@@ -317,11 +317,11 @@ def path_gen(ini_pos_vel_att, motion_def, output_def, mobility, ref_frame=0, mag
                     pos_ecef = geoparams.lla2ecef(pos_n)
 
                     # Put the time for the first satellite no matter what
-                    time = sim_count / output_def[1, 1] / 86400 + orbit.NAV_dataG[0][0].mjd
+                    mjd = sim_count / output_def[1, 1] / 86400 + orbit.NAV_dataG[0][0].mjd
                     gps_data[idx_low_freq, 0, 0] = sim_count
-
+                    gps_data[idx_low_freq, 0, 3] = mjd
                     for i in range(32):
-                        X, Y, Z, dte = orbit.calcSatCoord("G", i, time )
+                        X, Y, Z, dte = orbit.calcSatCoord("G", i, mjd )
                         if np.isnan( X ):
                             continue
                         u_pos_ecef = pos_ecef / np.linalg.norm(pos_ecef)
@@ -331,7 +331,6 @@ def path_gen(ini_pos_vel_att, motion_def, output_def, mobility, ref_frame=0, mag
                         # 60 degreee elevation angle
                         if theta < 1.0471:
                             pseudorange = np.linalg.norm( sat_pos_ecef - pos_ecef )
-                            gps_data[idx_low_freq, i, 0] = sim_count
                             gps_data[idx_low_freq, i, 1] = i
                             gps_data[idx_low_freq, i, 2] = pseudorange
                             psr_counter += 1

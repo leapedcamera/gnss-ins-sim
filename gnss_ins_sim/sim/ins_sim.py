@@ -477,13 +477,14 @@ class Sim(object):
         self.dmgr.add_data(self.dmgr.ref_gyro.name, rtn['imu'][:, 4:7])
         if self.imu.gps:
             if self.imu.gps_loose:
-                self.dmgr.add_data(self.dmgr.gps_time.name, rtn['gps'][:, 0] / self.fs[0])
+                self.dmgr.add_data(self.dmgr.gps_tov.name, rtn['gps'][:, 0] / self.fs[0])
                 self.dmgr.add_data(self.dmgr.ref_gps.name, rtn['gps'][:, 1:7])
                 self.dmgr.add_data(self.dmgr.gps_visibility.name, rtn['gps'][:, 7])
             else:
-                self.dmgr.add_data(self.dmgr.gps_time.name, rtn['gps'][:, 0, 0] / self.fs[0])
+                self.dmgr.add_data(self.dmgr.gps_tov.name, rtn['gps'][:, 0, 0] / self.fs[0])
                 self.dmgr.add_data(self.dmgr.gps_prn.name, rtn['gps'][:, :, 1])
                 self.dmgr.add_data(self.dmgr.ref_gps_obs.name, rtn['gps'][:, :, 2])
+                self.dmgr.add_data(self.dmgr.gps_mjd.name, rtn['gps'][:, 0, 3])
         if self.imu.magnetometer:
             self.dmgr.add_data(self.dmgr.ref_mag.name, rtn['mag'][:, 1:4])
         if self.imu.odo:
