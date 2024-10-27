@@ -148,8 +148,11 @@ class InsTight(object):
             
             self.step += 1
 
-        # Save results
-        self.results = [self.att, self.pos, self.vel]
+        # Save results, convert back to Euler angles for plotting
+        euler_att = np.zeros([n, 3])
+        for i in range(n):
+            euler_att[i,:] = attitude.quat2euler(self.att[i,:])
+        self.results = [euler_att, self.pos, self.vel]
 
     def initialize_nav_state(self, fs, time, gyro, accel, gps_data):
         '''

@@ -13,8 +13,8 @@ setuptools.setup(
         "GPS output, odometer output and magnetometer output.",
     long_description=long_description,
     long_description_content_type="text/markdown",
-    url="https://github.com/Aceinna/gnss-ins-sim",
-    install_requires=['numpy>1.10', 'matplotlib'],
+    url="https://github.com/leapedcamera/gnss-ins-sim:tight",
+    install_requires=['numpy>1.10', 'matplotlib', 'gnsstoolbox'],
     packages=setuptools.find_packages(),
     package_data={"": ['*.COF']},
     classifiers=[
